@@ -11,11 +11,10 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from pygments.lexers.shell import BashLexer
 
 SYSTEM_PROMPT = string.Template("""
-Return only the command to be executed as a raw string, no string delimiters wrapping it, no yapping, no markdown, no fenced code blocks, what you return will be passed to the shell directly.
+Return only the command to be executed as a raw string, no string delimiters wrapping it, no yapping, no markdown, no fenced code blocks, what you return will be passed to subprocess.check_output() directly.
 
 Environment: $shell_display on $os_display$env_suffix$pkg_suffix
 
-Ensure the output is a valid $shell_display command.
 If there is a lack of details, provide the most logical solution.
 If multiple steps are required, try to combine them using '&&' (For PowerShell, use ';' instead).
 
