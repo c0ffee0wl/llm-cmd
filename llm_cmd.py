@@ -1,14 +1,13 @@
 import click
 import llm
-import os
-import platform
-import shutil
 import string
 import subprocess
 from prompt_toolkit import PromptSession
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.patch_stdout import patch_stdout
 from pygments.lexers.shell import BashLexer
+
+from system_info import detect_shell, detect_os, detect_environment, detect_package_managers
 
 SYSTEM_PROMPT = string.Template("""
 Return only the command to be executed as a raw string, no string delimiters wrapping it, no yapping, no markdown, no fenced code blocks, what you return will be passed to subprocess.check_output() directly.
@@ -22,122 +21,6 @@ If multiple steps are required, try to combine them using '&&' (For PowerShell, 
 For example, if the user asks: undo last git commit
 You return only: git reset --soft HEAD~1
 """.strip())
-
-
-def detect_shell():
-    """Detect current shell cross-platform (using env vars only)"""
-    system = platform.system()
-
-    # Check for PowerShell first (cross-platform)
-    if os.getenv("PSModulePath"):
-        if system == "Windows":
-            # On Windows, distinguish PowerShell 5.1 vs 7+
-            # PSModulePath contains "WindowsPowerShell" in PS5, but just "PowerShell" in PS7
-            ps_module_path = os.getenv("PSModulePath", "")
-            if "WindowsPowerShell" in ps_module_path:
-                return "powershell", "5"  # Windows PowerShell 5.1
-
-            # Secondary check: PS7 adds "PowerShell\7" to PATH
-            path = os.getenv("Path", "")
-            if "PowerShell\\7" in path or "PowerShell/7" in path:
-                return "pwsh", "7"
-
-            # Tertiary fallback: check which executable is available
-            if shutil.which("pwsh"):
-                return "pwsh", "7"
-
-            # If PSModulePath exists but no WindowsPowerShell, assume PS7
-            return "pwsh", "7"
-        else:
-            # On Linux/macOS, PowerShell is always pwsh 7+
-            # (PowerShell 5.1 is Windows-only)
-            return "pwsh", "7"
-
-    # Windows-specific shells
-    if system == "Windows":
-        # Check for Git Bash/MSYS/Cygwin on Windows
-        shell = os.getenv("SHELL")
-        if shell:
-            shell_name = os.path.basename(shell)
-            return shell_name, ""
-
-        # Fall back to cmd.exe
-        return "cmd", ""
-
-    # Unix-like systems: $SHELL is reliable
-    shell_name = os.path.basename(os.getenv("SHELL") or "sh")
-    return shell_name, ""
-
-
-def detect_os():
-    """Detect OS - simplified version info"""
-    os_type = platform.system()
-
-    if os_type == "Linux":
-        # Just get distro name, skip version/kernel details
-        try:
-            with open('/etc/os-release') as f:
-                for line in f:
-                    if line.startswith('NAME='):
-                        distro = line.split('=')[1].strip().strip('"')
-                        return f"Linux ({distro})"
-        except:
-            pass
-        return "Linux"
-
-    elif os_type == "Darwin":
-        # Just "macOS" - version rarely matters for commands
-        return "macOS"
-
-    elif os_type == "Windows":
-        # Simple: just Windows (no build numbers)
-        return "Windows"
-
-    else:
-        return os_type
-
-
-def detect_environment():
-    """Detect hybrid environments (WSL, Git Bash, etc.)"""
-    os_name = platform.system()
-
-    # WSL detection
-    if os_name == "Linux":
-        if os.getenv("WSL_DISTRO_NAME"):
-            return "wsl"
-        try:
-            with open('/proc/version', 'r') as f:
-                if 'microsoft' in f.read().lower():
-                    return "wsl"
-        except:
-            pass
-
-    # Git Bash / MSYS
-    if os.getenv("MSYSTEM"):
-        return "gitbash"
-
-    # Cygwin
-    if os.getenv("CYGWIN"):
-        return "cygwin"
-
-    return "native"
-
-
-def detect_package_managers():
-    """Detect available package managers"""
-    managers = []
-
-    # Check common package managers
-    for pm in ['apt', 'dnf', 'yum', 'pacman', 'zypper', 'apk',  # Linux
-                'snap', 'flatpak',  # Universal Linux
-                'brew', 'port',  # macOS
-                'choco', 'scoop', 'winget',  # Windows
-                'nix', 'guix',  # Alternative
-                'pipx', 'uv', 'pip', 'npm', 'cargo', 'gem']:  # Language
-        if shutil.which(pm):
-            managers.append(pm)
-
-    return managers
 
 
 def render_system_prompt():
@@ -157,7 +40,7 @@ def render_system_prompt():
     context = {
         'shell_display': shell_display,
         'os_display': os_display,
-        'env_suffix': f'[running in {environment.upper()}]' if environment != 'native' else '',
+        'env_suffix': f' [running in {environment.upper()}]' if environment != 'native' else '',
         'pkg_suffix': f'\nPackage managers: {", ".join(package_managers)}' if package_managers else '',
     }
 
