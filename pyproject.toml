@@ -4,10 +4,7 @@ version = "0.3"
 description = "Use LLM to generate and execute commands in your shell"
 readme = "README.md"
 authors = [{name = "Simon Willison"}]
-license = {text = "Apache-2.0"}
-classifiers = [
-    "License :: OSI Approved :: Apache Software License"
-]
+license = "Apache-2.0"
 dependencies = [
     "llm",
     "prompt_toolkit>=3.0.43",
@@ -25,3 +22,6 @@ cmd = "llm_cmd"
 
 [project.optional-dependencies]
 test = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["llm_cmd", "system_info"]
